@@ -160,6 +160,39 @@ class MailClient:
                     pass
         return {"id": message_id, "thread_id": thread_id or message_id}
 
+    # ---- проверка доступа --------------------------------------------------------
+
+    def check(self) -> dict:
+        """Проверяет вход по IMAP (с открытием INBOX) и по SMTP. Ничего не отправляет и не меняет."""
+
+        def short(exc: Exception) -> str:
+            return f"ошибка: {type(exc).__name__}: {str(exc)[:200]}"
+
+        report: dict[str, str] = {}
+        with self._lock:
+            try:
+                conn = self._imap()
+                try:
+                    status, data = conn.select("INBOX", readonly=True)
+                    report["imap"] = f"ок, писем в INBOX: {int(data[0])}" if status == "OK" else f"INBOX не открылась: {status}"
+                finally:
+                    try:
+                        conn.logout()
+                    except Exception:
+                        pass
+            except Exception as exc:
+                report["imap"] = short(exc)
+            try:
+                server = self._smtp()
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+                report["smtp"] = "ок"
+            except Exception as exc:
+                report["smtp"] = short(exc)
+        return report
+
     # ---- чтение ------------------------------------------------------------------
 
     def _imap(self) -> imaplib.IMAP4:

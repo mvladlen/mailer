@@ -50,6 +50,15 @@ async def test_plain_text_is_queued_and_commands_are_handled_inline(cfg, store, 
     assert "Неизвестная команда" in tg.messages[-1]
 
 
+async def test_mailtest_command_and_check_without_contacts(cfg, store, outbox, mail, tg):
+    service = make_service(cfg, store, outbox, mail, tg)
+    await service.handle_owner_text("/mailtest")
+    assert "IMAP: ок" in tg.messages[-1] and "SMTP: ок" in tg.messages[-1] and cfg.mail_address in tg.messages[-1]
+    assert "secret" not in tg.messages[-1]
+    await service.handle_owner_text("/check")
+    assert "проверять нечего" in tg.messages[-1] and service.queue.empty()
+
+
 async def test_send_with_batch_enqueues_job_and_reports(cfg, store, outbox, mail, tg):
     hotel = store.add_hotel("Aurora", "info@aurora.com")
     store.set_batch("Запрос", "Привет, {hotel_name}", [hotel["id"]])

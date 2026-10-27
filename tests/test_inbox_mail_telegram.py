@@ -217,6 +217,27 @@ def test_fetch_relevant_downloads_only_matching_mail_readonly_and_caches_headers
     assert header_calls >= 1
 
 
+def test_check_reports_success_and_does_not_send(client):
+    FakeImap.mailbox = [(1, raw_email("a@a.com", "S", "B", "<x@a>")), (2, raw_email("b@b.com", "S", "B", "<y@b>"))]
+    report = client.check()
+    assert report == {"imap": "ок, писем в INBOX: 3", "smtp": "ок"}
+    assert FakeSmtp.instances[0].sent == [] and FakeImap.instances[0].selected == ("INBOX", True)
+
+
+def test_check_reports_login_errors_without_leaking_password(client, monkeypatch):
+    def deny(self, user, password):
+        raise imaplib.IMAP4.error("[AUTHENTICATIONFAILED] Invalid credentials")
+
+    def smtp_deny(self, user, password):
+        raise smtplib.SMTPAuthenticationError(535, b"5.7.8 Username and Password not accepted")
+
+    monkeypatch.setattr(FakeImap, "login", deny)
+    monkeypatch.setattr(FakeSmtp, "login", smtp_deny)
+    report = client.check()
+    assert "AUTHENTICATIONFAILED" in report["imap"] and "SMTPAuthenticationError" in report["smtp"]
+    assert "secret" not in str(report)
+
+
 # ---- Telegram -------------------------------------------------------------------
 
 

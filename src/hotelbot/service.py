@@ -23,6 +23,7 @@ HELP = (
     "/send — отправить утверждённый шаблон первого письма\n"
     "/cancel — отменить черновик рассылки\n"
     "/check — проверить почту сейчас\n"
+    "/mailtest — проверить вход в почту (IMAP и SMTP), письма не отправляются\n"
     "/hotels — список отелей и статусы\n"
     "/transcript название — переписка с отелем\n"
     "/status — состояние сервиса"
@@ -93,6 +94,9 @@ class Service:
             await self.say("Черновик рассылки отменён.")
         elif command == "/check":
             await self.check_mail_now()
+        elif command == "/mailtest":
+            report = await asyncio.to_thread(self.mail.check)
+            await self.say(f"Почта {self.cfg.mail_address}\nIMAP: {report['imap']}\nSMTP: {report['smtp']}")
         elif command == "/transcript":
             await self.send_transcript(arg)
         else:
@@ -142,6 +146,9 @@ class Service:
     # ---- почта -------------------------------------------------------------------
 
     async def check_mail_now(self) -> None:
+        if not any(h["contacted_at"] for h in self.store.list_hotels()):
+            await self.say("Отелям пока ничего не отправлено, проверять нечего. Доступ к почте проверяет команда /mailtest.")
+            return
         new = await asyncio.to_thread(poll_once, self.store, self.mail)
         if new or self.store.all_unread():
             await self.enqueue_mail()

@@ -33,6 +33,9 @@ class FakeMail:
         message_id = f"<sent{len(self.sent)}@fake>"
         return {"id": message_id, "thread_id": thread_id or message_id}
 
+    def check(self):
+        return {"imap": "ок, писем в INBOX: 3", "smtp": "ок"}
+
     def fetch_relevant(self, senders, our_message_ids, skip_ids, days=14):
         return [
             m
