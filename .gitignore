@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# секреты и данные никогда не попадают в репозиторий
+.env
+*.env
+credentials.json
+client_secret*.json
+token.json
+gmail_token.json
+data/
+hotelbot-data/

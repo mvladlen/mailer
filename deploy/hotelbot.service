@@ -1,0 +1,28 @@
+[Unit]
+Description=Hotel quotes bot (Telegram + Gmail + Claude)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hotelbot
+Group=hotelbot
+WorkingDirectory=/opt/hotelbot
+EnvironmentFile=/etc/hotelbot.env
+ExecStart=/opt/hotelbot/.venv/bin/python -m hotelbot
+Restart=on-failure
+RestartSec=10
+
+# каталог /var/lib/hotelbot создаётся автоматически и единственный доступен на запись
+StateDirectory=hotelbot
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
