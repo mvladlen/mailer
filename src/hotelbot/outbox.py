@@ -33,10 +33,10 @@ def _clean_subject(subject: str) -> str:
 
 
 class Outbox:
-    def __init__(self, cfg: Config, store: Store, gmail: Any, delay: float = 2.0):
+    def __init__(self, cfg: Config, store: Store, mail: Any, delay: float = 2.0):
         self.cfg = cfg
         self.store = store
-        self.gmail = gmail
+        self.mail = mail
         self.delay = delay
 
     def _check(self, hotel: dict, body: str) -> str:
@@ -72,10 +72,10 @@ class Outbox:
             self.store.mark_contacted(hotel["id"], None, subject)
             return {"sent": False, "dry_run": True}
         try:
-            result = self.gmail.send(hotel["email"], subject, body, thread_id=thread_id, in_reply_to=in_reply_to)
+            result = self.mail.send(hotel["email"], subject, body, thread_id=thread_id, in_reply_to=in_reply_to)
         except Exception as exc:  # сетевые ошибки и ошибки API не должны ронять сервис
             log.exception("не удалось отправить письмо отелю %s", hotel["id"])
-            raise SendRefused(f"Gmail вернул ошибку, письмо не отправлено: {type(exc).__name__}") from exc
+            raise SendRefused(f"почтовый сервер вернул ошибку, письмо не отправлено: {type(exc).__name__}") from exc
         self.store.append_transcript(hotel["id"], "OUT", when, subject, body)
         self.store.log_send(hotel["id"], kind, digest, result["id"], dry_run=False)
         self.store.mark_contacted(hotel["id"], result.get("thread_id"), subject)

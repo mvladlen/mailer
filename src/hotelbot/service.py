@@ -36,11 +36,11 @@ class Job:
 
 
 class Service:
-    def __init__(self, cfg: Config, store: Store, outbox: Outbox, gmail: Any, agent: AgentRunner, tg: TelegramApi):
+    def __init__(self, cfg: Config, store: Store, outbox: Outbox, mail: Any, agent: AgentRunner, tg: TelegramApi):
         self.cfg = cfg
         self.store = store
         self.outbox = outbox
-        self.gmail = gmail
+        self.mail = mail
         self.agent = agent
         self.tg = tg
         self.queue: asyncio.Queue[Job] = asyncio.Queue()
@@ -142,7 +142,7 @@ class Service:
     # ---- почта -------------------------------------------------------------------
 
     async def check_mail_now(self) -> None:
-        new = await asyncio.to_thread(poll_once, self.store, self.gmail)
+        new = await asyncio.to_thread(poll_once, self.store, self.mail)
         if new or self.store.all_unread():
             await self.enqueue_mail()
             await self.say(f"Новых писем: {len(new)}. Обрабатываю.")
@@ -160,11 +160,11 @@ class Service:
         while True:
             await asyncio.sleep(self.cfg.poll_interval)
             try:
-                new = await asyncio.to_thread(poll_once, self.store, self.gmail)
+                new = await asyncio.to_thread(poll_once, self.store, self.mail)
                 if new:
                     await self.enqueue_mail()
             except Exception as exc:
-                log.warning("ошибка опроса Gmail: %s", type(exc).__name__)
+                log.warning("ошибка опроса почты: %s", type(exc).__name__)
 
     # ---- воркер ------------------------------------------------------------------
 

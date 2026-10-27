@@ -12,6 +12,5 @@ dist/
 credentials.json
 client_secret*.json
 token.json
-gmail_token.json
 data/
 hotelbot-data/

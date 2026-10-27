@@ -1,5 +1,5 @@
 [Unit]
-Description=Hotel quotes bot (Telegram + Gmail + Claude)
+Description=Hotel quotes bot (Telegram + IMAP/SMTP + Claude)
 After=network-online.target
 Wants=network-online.target
 

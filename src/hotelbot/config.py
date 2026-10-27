@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
 
@@ -28,10 +28,17 @@ def _int(env: Mapping[str, str], name: str, default: int) -> int:
 
 @dataclass(frozen=True)
 class Config:
-    telegram_token: str
+    telegram_token: str = field(repr=False)
     owner_id: int
     data_dir: Path
-    gmail_token_path: Path
+    mail_address: str
+    mail_user: str
+    mail_password: str = field(repr=False)
+    imap_host: str
+    smtp_host: str
+    imap_port: int = 993
+    smtp_port: int = 465
+    mail_from_name: str = ""
     model: str = "claude-sonnet-5-5"
     owner_tz: str = "Asia/Yekaterinburg"
     dry_run: bool = True
@@ -44,11 +51,16 @@ class Config:
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Config":
         env = os.environ if env is None else env
-        missing = [
-            name
-            for name in ("TELEGRAM_BOT_TOKEN", "OWNER_TELEGRAM_ID", "ANTHROPIC_API_KEY")
-            if not env.get(name, "").strip()
-        ]
+        required = (
+            "TELEGRAM_BOT_TOKEN",
+            "OWNER_TELEGRAM_ID",
+            "ANTHROPIC_API_KEY",
+            "MAIL_ADDRESS",
+            "MAIL_PASSWORD",
+            "IMAP_HOST",
+            "SMTP_HOST",
+        )
+        missing = [name for name in required if not env.get(name, "").strip()]
         if missing:
             raise ConfigError("не заданы переменные окружения: " + ", ".join(missing))
         try:
@@ -56,14 +68,21 @@ class Config:
         except ValueError as exc:
             raise ConfigError("OWNER_TELEGRAM_ID должен быть числом") from exc
         data_dir = Path(env.get("HOTELBOT_DATA_DIR") or Path.home() / "hotelbot-data").expanduser()
-        token_path = Path(
-            env.get("GMAIL_TOKEN_PATH") or data_dir.parent / "gmail_token.json"
-        ).expanduser()
+        address = env["MAIL_ADDRESS"].strip()
+        if "@" not in address:
+            raise ConfigError("MAIL_ADDRESS должен быть адресом электронной почты")
         return cls(
             telegram_token=env["TELEGRAM_BOT_TOKEN"].strip(),
             owner_id=owner_id,
             data_dir=data_dir,
-            gmail_token_path=token_path,
+            mail_address=address,
+            mail_user=env.get("MAIL_USER", "").strip() or address,
+            mail_password=env["MAIL_PASSWORD"],
+            imap_host=env["IMAP_HOST"].strip(),
+            smtp_host=env["SMTP_HOST"].strip(),
+            imap_port=_int(env, "IMAP_PORT", 993),
+            smtp_port=_int(env, "SMTP_PORT", 465),
+            mail_from_name=env.get("MAIL_FROM_NAME", "").strip(),
             model=env.get("MODEL", "").strip() or "claude-sonnet-5-5",
             owner_tz=env.get("OWNER_TZ", "").strip() or "Asia/Yekaterinburg",
             dry_run=_flag(env.get("DRY_RUN"), True),

@@ -7,7 +7,7 @@
     pending.json        вопросы, ожидающие ответа владельца
     batch.json          черновик первой рассылки, ожидающий /send
     state.json          id уже обработанных писем
-    sent.jsonl          журнал отправок (для лимитов и защиты от дублей)
+    sent.jsonl          журнал отправок (лимиты, защита от дублей, сопоставление ответов)
     chat.jsonl          недавний диалог с владельцем
     hotels/<id>.md      полная переписка с отелем (только дописывается)
 """
@@ -410,6 +410,14 @@ class Store:
         if not path.exists():
             return []
         return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    def sent_message_ids(self) -> dict[str, str]:
+        """Message-ID наших реально отправленных писем -> id отеля (для сопоставления ответов)."""
+        return {
+            r["message_id"]: r["hotel_id"]
+            for r in self._sent_records()
+            if not r["dry_run"] and r.get("message_id")
+        }
 
     def count_sent_since(self, delta: timedelta) -> int:
         threshold = iso(self.clock() - delta)

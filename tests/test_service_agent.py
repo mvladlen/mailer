@@ -34,12 +34,12 @@ def tg():
     return FakeTelegram()
 
 
-def make_service(cfg, store, outbox, gmail, tg, agent=None):
-    return Service(cfg, store, outbox, gmail, agent or FakeAgent(AgentResult("ок")), tg)
+def make_service(cfg, store, outbox, mail, tg, agent=None):
+    return Service(cfg, store, outbox, mail, agent or FakeAgent(AgentResult("ок")), tg)
 
 
-async def test_plain_text_is_queued_and_commands_are_handled_inline(cfg, store, outbox, gmail, tg):
-    service = make_service(cfg, store, outbox, gmail, tg)
+async def test_plain_text_is_queued_and_commands_are_handled_inline(cfg, store, outbox, mail, tg):
+    service = make_service(cfg, store, outbox, mail, tg)
     await service.handle_owner_text("спроси про джакузи")
     assert service.queue.get_nowait().text == "спроси про джакузи"
     await service.handle_owner_text("/send")
@@ -50,44 +50,44 @@ async def test_plain_text_is_queued_and_commands_are_handled_inline(cfg, store, 
     assert "Неизвестная команда" in tg.messages[-1]
 
 
-async def test_send_with_batch_enqueues_job_and_reports(cfg, store, outbox, gmail, tg):
+async def test_send_with_batch_enqueues_job_and_reports(cfg, store, outbox, mail, tg):
     hotel = store.add_hotel("Aurora", "info@aurora.com")
     store.set_batch("Запрос", "Привет, {hotel_name}", [hotel["id"]])
-    service = make_service(cfg, store, outbox, gmail, tg)
+    service = make_service(cfg, store, outbox, mail, tg)
     await service.handle_owner_text("/send")
     job = service.queue.get_nowait()
     assert job.kind == "send_batch"
     await service.process(job)
-    assert "Отправлено: 1" in tg.messages[-1] and gmail.sent[0]["to"] == "info@aurora.com"
+    assert "Отправлено: 1" in tg.messages[-1] and mail.sent[0]["to"] == "info@aurora.com"
 
 
-async def test_owner_job_sends_notifications_then_reply(cfg, store, outbox, gmail, tg):
+async def test_owner_job_sends_notifications_then_reply(cfg, store, outbox, mail, tg):
     agent = FakeAgent(AgentResult("Итог", ["Шаблон письма"]))
-    service = make_service(cfg, store, outbox, gmail, tg, agent)
+    service = make_service(cfg, store, outbox, mail, tg, agent)
     await service.process(Job("owner", "привет"))
     assert tg.messages == ["Шаблон письма", "Итог"] and agent.calls == [("owner", "привет")]
 
 
-async def test_mail_job_never_sends_final_text_to_owner(cfg, store, outbox, gmail, tg):
+async def test_mail_job_never_sends_final_text_to_owner(cfg, store, outbox, mail, tg):
     agent = FakeAgent(AgentResult("внутренний итог", ["Отель прислал предложение"]))
-    service = make_service(cfg, store, outbox, gmail, tg, agent)
+    service = make_service(cfg, store, outbox, mail, tg, agent)
     await service.process(Job("mail"))
     assert tg.messages == ["Отель прислал предложение"]
 
 
-async def test_mail_jobs_are_coalesced(cfg, store, outbox, gmail, tg):
-    service = make_service(cfg, store, outbox, gmail, tg)
+async def test_mail_jobs_are_coalesced(cfg, store, outbox, mail, tg):
+    service = make_service(cfg, store, outbox, mail, tg)
     await service.enqueue_mail()
     await service.enqueue_mail()
     assert service.queue.qsize() == 1
 
 
-async def test_worker_survives_agent_failure(cfg, store, outbox, gmail, tg):
+async def test_worker_survives_agent_failure(cfg, store, outbox, mail, tg):
     class Broken:
         def run(self, source, text=""):
             raise RuntimeError("API down")
 
-    service = make_service(cfg, store, outbox, gmail, tg, Broken())
+    service = make_service(cfg, store, outbox, mail, tg, Broken())
     worker = asyncio.create_task(service.worker_loop())
     await service.queue.put(Job("owner", "привет"))
     await asyncio.sleep(0.2)
@@ -96,11 +96,11 @@ async def test_worker_survives_agent_failure(cfg, store, outbox, gmail, tg):
     assert "API down" not in " ".join(tg.messages)
 
 
-async def test_transcript_command_sends_text_or_document(cfg, store, outbox, gmail, tg):
+async def test_transcript_command_sends_text_or_document(cfg, store, outbox, mail, tg):
     from conftest import make_msg
 
     store.add_hotel("Aurora", "info@aurora.com")
-    service = make_service(cfg, store, outbox, gmail, tg)
+    service = make_service(cfg, store, outbox, mail, tg)
     await service.handle_owner_text("/transcript aurora")
     assert "пока нет" in tg.messages[-1]
     store.record_inbound("aurora", make_msg(body="короткое письмо"))

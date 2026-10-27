@@ -53,27 +53,27 @@ def test_unknown_hotel_returns_error_string_not_exception(owner_tools):
     assert tools["get_hotel_transcript"].call({"hotel_id": "nope"}).startswith("ОШИБКА")
 
 
-def test_propose_first_email_notifies_and_does_not_send(owner_tools, store, gmail):
+def test_propose_first_email_notifies_and_does_not_send(owner_tools, store, mail):
     ctx, tools = owner_tools
     tools["register_hotels"].call({"hotels": [{"name": "Aurora", "email": "info@aurora.com"}]})
     result = tools["propose_first_email"].call(
         {"subject": "Запрос", "body_template": "Здравствуйте, {hotel_name}!", "hotel_ids": ["aurora"]}
     )
     assert "не отправлены" in result
-    assert gmail.sent == []
+    assert mail.sent == []
     assert "/send" in ctx.notifications[0] and "Aurora" in ctx.notifications[0]
     assert store.get_batch()["hotel_ids"] == ["aurora"]
 
 
-def test_escalation_flow_end_to_end(store, outbox, gmail):
+def test_escalation_flow_end_to_end(store, outbox, mail):
     hotel = store.add_hotel("Aurora", "info@aurora.com")
     outbox.send_first(hotel["id"], "Запрос", "Привет")
     store.record_inbound(hotel["id"], make_msg(body="Нужна ли парковка?"))
 
     mail_ctx = RunContext("mail")
-    mail = {t.name: t for t in build_tools(store, outbox, mail_ctx)}
-    assert "untrusted" in mail["get_unread"].call({})
-    assert "p1" in mail["escalate"].call({"hotel_id": "aurora", "question": "Нужна ли парковка?"})
+    run_tools = {t.name: t for t in build_tools(store, outbox, mail_ctx)}
+    assert "untrusted" in run_tools["get_unread"].call({})
+    assert "p1" in run_tools["escalate"].call({"hotel_id": "aurora", "question": "Нужна ли парковка?"})
     assert "Нужна ли парковка?" in mail_ctx.notifications[0]
     assert store.get_hotel("aurora")["status"] == "waiting_owner"
 
@@ -83,7 +83,7 @@ def test_escalation_flow_end_to_end(store, outbox, gmail):
     assert '"aurora"' in resolved
     assert "одну машину" in owner["get_facts"].call({})
     owner["send_to_hotel"].call({"hotel_id": "aurora", "body": "Да, нужна парковка на одну машину."})
-    assert gmail.sent[-1]["to"] == "info@aurora.com" and gmail.sent[-1]["thread_id"] == "thread1"
+    assert mail.sent[-1]["to"] == "info@aurora.com" and mail.sent[-1]["thread_id"] == "<sent1@fake>"
     assert store.get_hotel("aurora")["status"] == "replied"
 
 

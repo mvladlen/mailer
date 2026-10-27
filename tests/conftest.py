@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from hotelbot.config import Config
-from hotelbot.gmail_client import IncomingMessage
+from hotelbot.mail_client import IncomingMessage
 from hotelbot.outbox import Outbox
 from hotelbot.store import Store
 
@@ -19,8 +19,8 @@ class Clock:
         self.now += timedelta(**kwargs)
 
 
-class FakeGmail:
-    own_email = "me@gmail.com"
+class FakeMail:
+    own_email = "me@example.org"
 
     def __init__(self):
         self.sent = []
@@ -30,17 +30,18 @@ class FakeGmail:
         self.sent.append(
             {"to": to, "subject": subject, "body": body, "thread_id": thread_id, "in_reply_to": in_reply_to}
         )
-        return {"id": f"sent{len(self.sent)}", "thread_id": thread_id or f"thread{len(self.sent)}"}
+        message_id = f"<sent{len(self.sent)}@fake>"
+        return {"id": message_id, "thread_id": thread_id or message_id}
 
-    def fetch_thread_messages(self, thread_id):
-        return [m for m in self.inbox if m.thread_id == thread_id]
+    def fetch_relevant(self, senders, our_message_ids, skip_ids, days=14):
+        return [
+            m
+            for m in self.inbox
+            if m.id not in skip_ids and (m.from_email in senders or set(m.references) & our_message_ids)
+        ]
 
-    def fetch_from_senders(self, senders, skip_ids=None):
-        skip = skip_ids or set()
-        return [m for m in self.inbox if m.from_email in senders and m.id not in skip]
 
-
-def make_msg(msg_id="g1", thread_id="thread1", sender="info@aurora.com", subject="Re: Запрос", body="Да, есть.", when=None):
+def make_msg(msg_id="g1", thread_id="thread1", sender="info@aurora.com", subject="Re: Запрос", body="Да, есть.", when=None, references=None):
     return IncomingMessage(
         id=msg_id,
         thread_id=thread_id,
@@ -49,6 +50,7 @@ def make_msg(msg_id="g1", thread_id="thread1", sender="info@aurora.com", subject
         date=when or datetime(2026, 10, 27, 8, 0, tzinfo=timezone.utc),
         body=body,
         message_id_header=f"<{msg_id}@mail>",
+        references=references or [],
     )
 
 
@@ -64,7 +66,11 @@ def make_cfg(tmp_path):
             telegram_token="123:abc",
             owner_id=42,
             data_dir=tmp_path / "data",
-            gmail_token_path=tmp_path / "token.json",
+            mail_address="me@example.org",
+            mail_user="me",
+            mail_password="secret",
+            imap_host="imap.example.org",
+            smtp_host="smtp.example.org",
             dry_run=False,
             max_emails_per_hour=5,
             max_emails_per_day=10,
@@ -86,10 +92,10 @@ def store(cfg, clock):
 
 
 @pytest.fixture
-def gmail():
-    return FakeGmail()
+def mail():
+    return FakeMail()
 
 
 @pytest.fixture
-def outbox(cfg, store, gmail):
-    return Outbox(cfg, store, gmail, delay=0)
+def outbox(cfg, store, mail):
+    return Outbox(cfg, store, mail, delay=0)
